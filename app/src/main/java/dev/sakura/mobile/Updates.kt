@@ -56,7 +56,9 @@ internal data class UpdateRelease(
     }
 }
 
-private const val RELEASE_API = "https://api.github.com/repos/trollingmemz-jpg/Sakura-Mobile/releases"
+private const val PRIVATE_RELEASE_API = "https://api.github.com/repos/trollingmemz-jpg/Sakura-Mobile/releases"
+private const val PUBLIC_RELEASE_API = "https://api.github.com/repos/trollingmemz-jpg/Sakura-Mobile-Releases/releases"
+private fun releaseApi(token: String) = if (token.isBlank()) PUBLIC_RELEASE_API else PRIVATE_RELEASE_API
 private const val APK_TYPE = "application/vnd.android.package-archive"
 
 internal class UpdateClient(private val context: Context) {
@@ -66,7 +68,7 @@ internal class UpdateClient(private val context: Context) {
     val versionName get() = installed.versionName.orEmpty()
 
     suspend fun check(token: String): UpdateRelease? = withContext(Dispatchers.IO) {
-        val request = connect(URL("$RELEASE_API/latest"), token, "application/vnd.github+json")
+        val request = connect(URL("${releaseApi(token)}/latest"), token, "application/vnd.github+json")
         try {
             when (request.responseCode) {
                 200 -> {
@@ -83,7 +85,7 @@ internal class UpdateClient(private val context: Context) {
                     }
                     UpdateRelease.parse(JSONObject(bytes.toString("UTF-8")), versionCode)
                 }
-                401, 403, 404 -> error("GitHub could not open the latest release. Check the repository token.")
+                401, 403, 404 -> error(if (token.isBlank()) "Public update channel is not available yet." else "GitHub could not open the latest release. Check the repository token.")
                 else -> error("GitHub returned HTTP ${request.responseCode}.")
             }
         } finally {
@@ -98,7 +100,7 @@ internal class UpdateClient(private val context: Context) {
             check(verified.isDirectory || verified.mkdirs()) { "Could not create the update folder." }
             val temporary = File.createTempFile("sakura-", ".apk", directory)
             try {
-                val source = connect(URL("$RELEASE_API/assets/${release.assetId}"), token, "application/octet-stream")
+                val source = connect(URL("${releaseApi(token)}/assets/${release.assetId}"), token, "application/octet-stream")
                 val digest = MessageDigest.getInstance("SHA-256")
                 var received = 0L
                 try {
