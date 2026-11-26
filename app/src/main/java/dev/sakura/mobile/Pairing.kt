@@ -41,6 +41,14 @@ internal data class Connection(
 }
 
 internal class PairingStore(context: Context, name: String = "sakura_pairing") {
+    private val storage = EncryptedPreference(context, name, "connection")
+
+    fun load(): Connection? = storage.load()?.let(Connection::parse)
+    fun save(connection: Connection) = storage.save(connection.json().toString())
+    fun clear() = storage.clear()
+}
+
+internal class EncryptedPreference(context: Context, name: String, private val field: String) {
     private val prefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
     private val keys = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
     private val alias = "${name}_v1"
@@ -54,22 +62,22 @@ internal class PairingStore(context: Context, name: String = "sakura_pairing") {
             generateKey()
         }
 
-    fun load(): Connection? {
-        val blob = prefs.getString("connection", null) ?: return null
+    fun load(): String? {
+        val blob = prefs.getString(field, null) ?: return null
         val bytes = Base64.decode(blob, Base64.NO_WRAP)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, 12)))
-        return Connection.parse(cipher.doFinal(bytes, 12, bytes.size - 12).decodeToString())
+        return cipher.doFinal(bytes, 12, bytes.size - 12).decodeToString()
     }
 
-    fun save(connection: Connection) {
+    fun save(value: String) {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())
-        val blob = cipher.iv + cipher.doFinal(connection.json().toString().encodeToByteArray())
-        check(prefs.edit().putString("connection", Base64.encodeToString(blob, Base64.NO_WRAP)).commit())
+        val blob = cipher.iv + cipher.doFinal(value.encodeToByteArray())
+        check(prefs.edit().putString(field, Base64.encodeToString(blob, Base64.NO_WRAP)).commit())
     }
 
     fun clear() {
-        check(prefs.edit().remove("connection").commit())
+        check(prefs.edit().remove(field).commit())
     }
 }

@@ -25,3 +25,11 @@ This is the Android client’s proposed v1 interface. The existing Sakura servic
 - Wake-on-LAN sends a standard magic packet directly over the LAN.
 
 Compose feature panels, transport, discovery, and credential storage have separate entry points so a future Sakura Canvas client can reuse pairing and transport.
+
+## App updates
+
+The app checks the latest stable GitHub Release at launch after a repository token has been configured. In Settings, save a fine-grained GitHub token limited to this repository with **Contents: Read-only**. Android Keystore encrypts it on the device. Settings also has a manual update check. After the download is verified, tap **Install update** and approve the Android installer. Android may first ask you to allow installs from Sakura Mobile.
+
+For a release, increment `versionCode` and set `versionName` in the app Gradle file, then push the corresponding `v<versionName>` tag. The APK asset name includes its version code, and GitHub supplies its SHA-256 digest. The updater also checks the downloaded APK’s package, embedded version code, and signing certificate against the installed app.
+
+The release workflow uses the repository Actions secret `SAKURA_KEYSTORE_BASE64`. It must contain the original Sakura Mobile signing keystore in base64. The workflow checks the public certificate fingerprint before publishing. The original debug keystore identity is retained for in-place upgrades, and release builds are non-debuggable.

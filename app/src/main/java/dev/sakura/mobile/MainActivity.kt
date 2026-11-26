@@ -47,7 +47,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun SakuraApp() {
-    val context = LocalContext.current.applicationContext
+    val activityContext = LocalContext.current
+    val context = activityContext.applicationContext
     val store = remember { PairingStore(context) }
     val saved = remember { runCatching { store.load() } }
     var paired by remember { mutableStateOf(saved.getOrNull()) }
@@ -134,7 +135,10 @@ private fun SakuraApp() {
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("Sakura Mobile", style = MaterialTheme.typography.headlineMedium)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Sakura Mobile", style = MaterialTheme.typography.headlineMedium)
+                UpdateMenu(activityContext)
+            }
             Text(when {
                 paired == null -> "Scan the pairing QR displayed on your PC."
                 status == null -> "PC offline or connecting"

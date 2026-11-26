@@ -10,14 +10,22 @@ android {
         applicationId = "dev.sakura.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    val signingFile = providers.environmentVariable("SAKURA_SIGNING_KEYSTORE")
+    signingConfigs.getByName("debug") {
+        signingFile.orNull?.let { storeFile = file(it) }
+    }
+    buildTypes.getByName("release") {
+        signingConfig = signingConfigs.getByName("debug")
     }
     buildFeatures { compose = true }
 }
 
 dependencies {
+    implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation(platform("androidx.compose:compose-bom:2025.02.00"))
