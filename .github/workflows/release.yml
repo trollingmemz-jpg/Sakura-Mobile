@@ -55,3 +55,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$RELEASE_TAG" sakura-mobile-*.apk --verify-tag --generate-notes
+
+      - name: Publish APK to public distribution channel
+        env:
+          GH_TOKEN: ${{ secrets.SAKURA_PUBLIC_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::notice::Public distribution token not configured; private release is available."
+            exit 0
+          fi
+          repo=trollingmemz-jpg/Sakura-Mobile-Releases
+          [[ "$(gh repo view "$repo" --json visibility --jq .visibility)" == PUBLIC ]]
+          gh release create "$RELEASE_TAG" sakura-mobile-*.apk --repo "$repo" --title "Sakura Mobile $RELEASE_TAG" --notes "Signed Sakura Mobile APK. Source is maintained separately."
