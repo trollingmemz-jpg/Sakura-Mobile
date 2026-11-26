@@ -1,6 +1,19 @@
 package dev.sakura.mobile
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.hypot
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -56,7 +69,7 @@ internal fun MediaPanel(media: JSONObject?, enabled: Boolean, send: (String, JSO
 @Composable
 internal fun LightingPanel(lighting: JSONObject?, enabled: Boolean, send: (JSONObject) -> Unit) =
     Panel("Lighting") {
-        if (lighting == null) Text("Lighting unavailable")
+        if (lighting == null || lighting.length() == 0) Text("No active RGB controller. Enable Dashboard lighting or start Sakura Lighting on your PC.")
         for ((id, label) in listOf("keyboard" to "Keyboard", "ram" to "RAM", "mouse" to "Mouse")) {
             val device = lighting?.optJSONObject(id)
             val initialColor = device?.optString("color") ?: "#f478d7"
@@ -66,6 +79,14 @@ internal fun LightingPanel(lighting: JSONObject?, enabled: Boolean, send: (JSONO
             val available = enabled && device != null
             OutlinedTextField(value = color, onValueChange = { if (it.length <= 7) color = it },
                 label = { Text("$label colour") }, singleLine = true, enabled = available)
+            var pickerOpen by remember(id) { mutableStateOf(false) }
+            OutlinedButton(enabled = available, onClick = { pickerOpen = true }) {
+                Text("Choose $label colour")
+            }
+            if (pickerOpen) ColourWheelDialog(label, color, { pickerOpen = false }) {
+                color = it
+                pickerOpen = false
+            }
             Text("$label brightness · ${brightness.roundToInt()}%")
             Slider(value = brightness, onValueChange = { brightness = it }, valueRange = 0f..100f,
                 enabled = available)
@@ -98,3 +119,61 @@ internal fun PowerPanel(online: Boolean, idle: Boolean, wake: () -> Unit, send: 
             dismissButton = { TextButton(onClick = { confirmingSleep = false }) { Text("Cancel") } },
         )
     }
+
+@Composable
+private fun ColourWheelDialog(label: String, initial: String, dismiss: () -> Unit, apply: (String) -> Unit) {
+    val hsv = remember(initial) {
+        FloatArray(3).also {
+            android.graphics.Color.colorToHSV(
+                runCatching { android.graphics.Color.parseColor(initial) }.getOrDefault(0xfff478d7.toInt()), it)
+        }
+    }
+    var hue by remember { mutableFloatStateOf(hsv[0]) }
+    var saturation by remember { mutableFloatStateOf(hsv[1]) }
+    var value by remember { mutableFloatStateOf(hsv[2]) }
+    val selected = Color.hsv(hue, saturation, value)
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("$label colour") },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Canvas(Modifier.fillMaxWidth().aspectRatio(1f).pointerInput(Unit) {
+                    fun pick(p: Offset) {
+                        val dx = p.x - size.width / 2f
+                        val dy = p.y - size.height / 2f
+                        val radius = minOf(size.width, size.height) / 2f
+                        hue = ((Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())) + 360) % 360).toFloat()
+                        saturation = (hypot(dx, dy) / radius).coerceIn(0f, 1f)
+                    }
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        pick(down.position)
+                        down.consume()
+                        do {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (change.pressed) { pick(change.position); change.consume() }
+                        } while (event.changes.any { it.pressed })
+                    }
+                }) {
+                    val r = size.minDimension / 2
+                    drawCircle(Brush.sweepGradient(listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red), center), r)
+                    drawCircle(Brush.radialGradient(listOf(Color.White, Color.Transparent), center, r), r)
+                    drawCircle(Color.Black.copy(alpha = 1f - value), r)
+                    val angle = Math.toRadians(hue.toDouble())
+                    val marker = center + Offset(cos(angle).toFloat(), sin(angle).toFloat()) * (r * saturation)
+                    drawCircle(Color.Black, 10.dp.toPx(), marker, style = Stroke(4.dp.toPx()))
+                    drawCircle(Color.White, 10.dp.toPx(), marker, style = Stroke(2.dp.toPx()))
+                }
+                Text("Colour intensity")
+                Slider(value = value, onValueChange = { value = it })
+                Surface(color = selected, modifier = Modifier.fillMaxWidth().height(32.dp), shape = MaterialTheme.shapes.small) {}
+            }
+        },
+        confirmButton = { TextButton(onClick = {
+            val rgb = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
+            apply("#%06X".format(rgb and 0xffffff))
+        }) { Text("Select colour") } },
+        dismissButton = { TextButton(onClick = dismiss) { Text("Cancel") } }
+    )
+}
