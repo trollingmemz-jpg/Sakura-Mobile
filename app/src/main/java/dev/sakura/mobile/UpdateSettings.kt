@@ -30,12 +30,12 @@ internal fun UpdateMenu(context: Context) {
     var release by remember { mutableStateOf<UpdateRelease?>(null) }
     var apk by remember { mutableStateOf<File?>(null) }
     var notice by remember {
-        mutableStateOf(if (token.isBlank()) "Add a GitHub read token to receive updates." else "")
+        mutableStateOf("")
     }
     val scope = rememberCoroutineScope()
 
     suspend fun check(showAvailable: Boolean) {
-        if (busy || token.isBlank()) return
+        if (busy) return
         busy = true
         notice = "Checking GitHub…"
         try {
@@ -80,7 +80,7 @@ internal fun UpdateMenu(context: Context) {
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
-                if (token.isBlank()) Text("Use a token with Contents read access to the private Sakura-Mobile repository.")
+                if (token.isBlank()) Text("Updates use the public APK channel. A read token is optional for private releases.")
                 if (draft.isNotBlank()) TextButton(enabled = !busy, onClick = {
                     val value = draft.trim()
                     if (!value.matches(Regex("[A-Za-z0-9_]{20,512}"))) {
@@ -99,12 +99,12 @@ internal fun UpdateMenu(context: Context) {
                         draft = ""
                         release = null
                         apk = null
-                        notice = "GitHub token removed."
+                        notice = "Using public update channel."
                     } else {
                         notice = "Could not remove the GitHub token."
                     }
                 }) { Text("Remove token") }
-                OutlinedButton(enabled = !busy && token.isNotEmpty(), onClick = {
+                OutlinedButton(enabled = !busy, onClick = {
                     scope.launch { check(showAvailable = false) }
                 }) { Text("Check for Updates") }
 
@@ -128,7 +128,7 @@ internal fun UpdateMenu(context: Context) {
                             }
                             .onFailure { notice = "Could not open the Android installer." }
                     }) { Text("Install update") }
-                    else Button(enabled = !busy && token.isNotEmpty(), onClick = {
+                    else Button(enabled = !busy, onClick = {
                         busy = true
                         progress = 0
                         notice = "Downloading APK…"
